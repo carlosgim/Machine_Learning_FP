@@ -1,0 +1,179 @@
+---
+title: "Quality of Activity in Fitness"
+subtitle: "Final Project Report - Practical Machine Learning Course"
+author: Carlos A. Giménez
+output:
+  html_document: default
+---
+
+# Introduction
+
+The goal of this project is to predict the manner in which a group of people did exercises, these 
+are based on a previus captured information in sensors of movement.
+
+The data set are divided in to two parts Training and Test. From the Training data set, we take 
+the "classe" variable like target of prediction.
+
+## Background
+
+The follow background of the project was extracted from the Practical Machine Learning Course
+of the Johns Hoopsking University:
+
+"Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large 
+amount of data about personal activity relatively inexpensively. These type of devices are part of 
+the quantified self movement – a group of enthusiasts who take measurements about themselves 
+regularly to improve their health, to find patterns in their behavior, or because they are tech 
+geeks. One thing that people regularly do is quantify how much of a particular activity they do, 
+but they rarely quantify how well they do it. In this project, your goal will be to use data from
+accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform
+barbell lifts correctly and incorrectly in 5 different ways. More information is available from the
+website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting 
+Exercise Dataset)."
+
+## Session information
+For this project the sistem was:
+```{r}
+sessionInfo()
+```
+
+# Getting and Cleaning Data
+
+The data sources was:
+
+For training data
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+For test data
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. 
+
+The follow step consist in load the data:
+```{r}
+if(!file.exists("./data")){dir.create("./data")}
+
+training <- read.csv("pml-training.csv")
+testing <- read.csv("pml-testing.csv")
+```
+Let`s take a look to datasets
+```{r}
+dim(training); dim(testing)
+```
+Let`s check the target variable
+```{r}
+summary(training$classe)
+```
+As we can see, the "classe" variable contain five differents category, 
+
+## Preparing dataset
+
+```{r}
+set.seed(12345)
+library(caret)
+```
+
+```{r}
+inTrain <- createDataPartition(y=training$classe, p=0.7, list=FALSE)
+Training_wk <- training[inTrain, ]
+Testing_wk <- training[-inTrain, ]
+dim(Training_wk); dim(Testing_wk)
+```
+
+## Cleaning Stage
+
+The first step is handle values near to zero
+
+```{r}
+nzv <- nearZeroVar(Training_wk, saveMetrics=TRUE)
+Training_wk <- Training_wk[,nzv$nzv==FALSE]
+
+nzv <- nearZeroVar(Testing_wk,saveMetrics=TRUE)
+Testing_wk <- Testing_wk[,nzv$nzv==FALSE]
+```
+
+
+The follow steps consist in cleaning the data. First, we need check the "NA" values, if we have
+many NAs in one column we need discard that coulumn
+
+```{r}
+clean_train <- Training_wk
+for(i in 1:length(Training_wk)) { if( sum(is.na( Training_wk[, i] ) ) /nrow(Training_wk) >= .5) {
+        for(j in 1:length(clean_train)) {
+            if( length( grep(names(Training_wk[i]), names(clean_train)[j]) ) == 1)  {
+                clean_train <- clean_train[ , -j]}}}}
+Training_wk <- clean_train
+```
+
+```{r}
+dim(Training_wk)
+```
+
+```{r}
+clean1 <- colnames(Training_wk)
+clean2 <- colnames(Training_wk[, -59]) 
+```
+```{r}
+# Extract only columns that we have in Training_wk
+Testing_wk <- Testing_wk[clean1]         
+testing <- testing[clean2]
+```
+
+```{r}
+# To get the same class 
+testing <- rbind(Training_wk[2, -59] , testing)
+testing <- testing[-1,]
+```
+
+
+# Prediction
+
+## Decision Tree
+```{r}
+require(rpart)
+```
+
+```{r}
+DT <- rpart(classe ~ ., data=Training_wk, method="class")
+```
+```{r}
+prediction <- predict(DT, Testing_wk, type = "class")
+matrix_cm <- confusionMatrix(prediction, Testing_wk$classe)
+
+matrix_cm$overall
+```
+
+
+## Random Forest
+
+```{r}
+require(randomForest)
+```
+
+
+```{r}
+RF <- randomForest(classe ~ ., data = Training_wk)
+prediction_RF <- predict(RF, Testing_wk, type = "class")
+confmat <- confusionMatrix(prediction_RF, Testing_wk$classe)
+```
+
+## Apply the best model
+
+The best model is Random Forest,
+
+```{r}
+dim(testing); dim(Testing_wk)
+```
+
+
+
+```{r}
+final <- predict(RF, testing, type = "class")
+final
+```
+
+# Conclusion
+The randomForest approach had much higher predictive accuracy than the decision tree classifier. For
+this project in particular.
